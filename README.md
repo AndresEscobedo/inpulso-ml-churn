@@ -412,7 +412,7 @@ kubectl get pods -n churn
 ```bash
 kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl get svc elector -n churn
-curl -X POST "http://34.58.10.230:8000/predict" \
+curl -X POST "http://EXTERNAL_IP:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{"age": 29, "monthlyincome": 3800, "overtime": "Yes"}'
 ```
