@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elector
+  namespace: churn
+  labels:
+    app: elector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: elector
+  template:
+    metadata:
+      labels:
+        app: elector
+    spec:
+      containers:
+        - name: elector
+          image: us-central1-docker.pkg.dev/PROJECT_ID/ml-models/elector:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5002
+          env:
+            - name: CANARY_WEIGHT
+              value: "20"
+            - name: MAIN_MODEL_URL
+              value: http://main-model:5000
+            - name: CANARY_MODEL_URL
+              value: http://canary-model:5001
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: "5"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "300m"
+              memory: "512Mi"

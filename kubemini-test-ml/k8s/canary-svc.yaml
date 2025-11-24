@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: canary-model
+  namespace: churn
+  labels:
+    app: canary-model
+spec:
+  type: ClusterIP
+  selector:
+    app: canary-model
+  ports:
+    - name: http
+      port: 5001
+      targetPort: 5001

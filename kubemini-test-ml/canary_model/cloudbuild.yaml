@@ -1,0 +1,14 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/canary-model:${_IMAGE_TAG}', '-f', 'canary_model/Dockerfile', '.']
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/canary-model:${_IMAGE_TAG}']
+
+images: 
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/canary-model:${_IMAGE_TAG}'
+
+substitutions:
+  _REGION: 'us-central1'
+  _REPOSITORY: 'ml-models'
+  _IMAGE_TAG: 'latest'

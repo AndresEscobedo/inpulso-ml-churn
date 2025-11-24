@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-model
+  namespace: churn
+  labels:
+    app: main-model
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: main-model
+  template:
+    metadata:
+      labels:
+        app: main-model
+    spec:
+      containers:
+        - name: main-model
+          image: us-central1-docker.pkg.dev/PROJECT_ID/ml-models/main-model:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          env:
+            - name: MODEL_KEY
+              value: main
+            - name: MODEL_ARTIFACT_PATH
+              value: /app/artifacts/main_model.joblib
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"

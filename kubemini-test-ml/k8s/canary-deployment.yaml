@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canary-model
+  namespace: churn
+  labels:
+    app: canary-model
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canary-model
+  template:
+    metadata:
+      labels:
+        app: canary-model
+    spec:
+      containers:
+        - name: canary-model
+          image: us-central1-docker.pkg.dev/PROJECT_ID/ml-models/canary-model:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5001
+          env:
+            - name: MODEL_KEY
+              value: canary
+            - name: MODEL_ARTIFACT_PATH
+              value: /app/artifacts/canary_model.joblib
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "400m"
+              memory: "768Mi"
