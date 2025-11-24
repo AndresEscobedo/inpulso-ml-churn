@@ -15,9 +15,11 @@ spec:
       labels:
         app: canary-model
     spec:
+      imagePullSecrets:
+        - name: gcp-artifact-registry
       containers:
         - name: canary-model
-          image: us-central1-docker.pkg.dev/PROJECT_ID/ml-models/canary-model:latest
+          image: us-central1-docker.pkg.dev/inbest-transformation/inpulso-ds/canary-model:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5001

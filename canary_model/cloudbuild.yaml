@@ -10,5 +10,5 @@ images:
 
 substitutions:
   _REGION: 'us-central1'
-  _REPOSITORY: 'ml-models'
+  _REPOSITORY: 'inpulso-ds'
   _IMAGE_TAG: 'latest'

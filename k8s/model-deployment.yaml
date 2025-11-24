@@ -15,9 +15,11 @@ spec:
       labels:
         app: main-model
     spec:
+      imagePullSecrets:
+        - name: gcp-artifact-registry
       containers:
         - name: main-model
-          image: us-central1-docker.pkg.dev/PROJECT_ID/ml-models/main-model:latest
+          image: us-central1-docker.pkg.dev/inbest-transformation/inpulso-ds/main-model:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

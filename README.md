@@ -297,10 +297,10 @@ curl http://$ELECTOR_IP:$NODE_PORT/health  # confirms active weight
 ### 1. Environment variables
 
 ```bash
-export PROJECT_ID=kubernetes-cc-2025-478900
+export PROJECT_ID=inbest-transformation
 export LOCATION=us-central1
-export REPOSITORY=ml-models
-export CLUSTER_NAME=ml-churn-cluster
+export REPOSITORY=inpulso-ds
+export CLUSTER_NAME=inpulso-ds
 ```
 
 ### 2. Create the GKE cluster
@@ -330,22 +330,33 @@ gcloud artifacts repositories create $REPOSITORY \
 gcloud auth configure-docker $LOCATION-docker.pkg.dev
 ```
 
-### 4. Build and push container images
+### 4. Build and push container images (Cloud Build)
 
 ```bash
-MAIN_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/main-model:latest
-CANARY_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/canary-model:latest
-ELECTOR_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/elector:latest
+IMAGE_TAG=latest
+MAIN_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/main-model:$IMAGE_TAG
+CANARY_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/canary-model:$IMAGE_TAG
+ELECTOR_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/elector:$IMAGE_TAG
 
-docker build --platform linux/amd64 -t $MAIN_IMAGE -f main_model/Dockerfile .
-docker push $MAIN_IMAGE
+gcloud services enable cloudbuild.googleapis.com
 
-docker build --platform linux/amd64 -t $CANARY_IMAGE -f canary_model/Dockerfile .
-docker push $CANARY_IMAGE
+gcloud builds submit \
+  --config main_model/cloudbuild.yaml \
+  --substitutions=_REGION=$LOCATION,_REPOSITORY=$REPOSITORY,_IMAGE_TAG=$IMAGE_TAG \
+  .
 
-docker build --platform linux/amd64 -t $ELECTOR_IMAGE -f elector/Dockerfile .
-docker push $ELECTOR_IMAGE
+gcloud builds submit \
+  --config canary_model/cloudbuild.yaml \
+  --substitutions=_REGION=$LOCATION,_REPOSITORY=$REPOSITORY,_IMAGE_TAG=$IMAGE_TAG \
+  .
+
+gcloud builds submit \
+  --config elector/cloudbuild.yaml \
+  --substitutions=_REGION=$LOCATION,_REPOSITORY=$REPOSITORY,_IMAGE_TAG=$IMAGE_TAG \
+  .
 ```
+
+Each submission uses the Dockerfile referenced inside the `cloudbuild.yaml` file, builds the image in Cloud Build's managed environment, and automatically pushes it to Artifact Registry under the tag supplied via `_IMAGE_TAG`.
 
 ### 5. (Optional) Create pull secrets
 
@@ -401,7 +412,7 @@ kubectl get pods -n churn
 ```bash
 kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl get svc elector -n churn
-curl -X POST "http://EXTERNAL_IP:8000/predict" \
+curl -X POST "http://34.58.10.230:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{"age": 29, "monthlyincome": 3800, "overtime": "Yes"}'
 ```
@@ -457,3 +468,111 @@ Typical fixes:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Prediction Examples (Full Payload)
+
+The Elector service expects the complete churn feature vector. Replace `ELECTOR_HOST` with the Load Balancer IP or local host/port you are targeting.
+
+**Class 0 (retain) example**
+
+```bash
+curl -s -X POST "http://ELECTOR_HOST/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "age": 37,
+    "businesstravel": "Travel_Rarely",
+    "dailyrate": 1020,
+    "department": "Research & Development",
+    "distancefromhome": 6,
+    "education": 3,
+    "educationfield": "Medical",
+    "environmentsatisfaction": 4,
+    "gender": "Male",
+    "hourlyrate": 68,
+    "jobinvolvement": 3,
+    "joblevel": 2,
+    "jobrole": "Research Scientist",
+    "disobediencerules": "No",
+    "jobsatisfaction": 4,
+    "maritalstatus": "Married",
+    "monthlyincome": 5500,
+    "monthlyrate": 14200,
+    "numcompaniesworked": 2,
+    "overtime": "No",
+    "percentsalaryhike": 12,
+    "performancerating": 3,
+    "relationshipsatisfaction": 3,
+    "stockoptionlevel": 1,
+    "totalworkingyears": 11,
+    "trainingtimeslastyear": 3,
+    "worklifebalance": 3,
+    "yearsatcompany": 8,
+    "yearsincurrentrole": 5,
+    "yearssincelastpromotion": 1,
+    "yearswithcurrmanager": 4
+  }'
+```
+
+Sample response:
+
+```json
+{
+  "prediction": {
+    "predicted_label": 0,
+    "churn_probability": 0.05,
+    "probability_vector": [0.9499, 0.0501]
+  }
+}
+```
+
+**Class 1 (attrite) example**
+
+```bash
+curl -s -X POST "http://ELECTOR_HOST/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "age": 27,
+    "businesstravel": "Travel_Frequently",
+    "dailyrate": 350,
+    "department": "Sales",
+    "distancefromhome": 22,
+    "education": 1,
+    "educationfield": "Marketing",
+    "environmentsatisfaction": 1,
+    "gender": "Female",
+    "hourlyrate": 42,
+    "jobinvolvement": 1,
+    "joblevel": 1,
+    "jobrole": "Sales Executive",
+    "disobediencerules": "Yes",
+    "jobsatisfaction": 1,
+    "maritalstatus": "Single",
+    "monthlyincome": 2800,
+    "monthlyrate": 2700,
+    "numcompaniesworked": 5,
+    "overtime": "Yes",
+    "percentsalaryhike": 11,
+    "performancerating": 3,
+    "relationshipsatisfaction": 1,
+    "stockoptionlevel": 0,
+    "totalworkingyears": 4,
+    "trainingtimeslastyear": 1,
+    "worklifebalance": 1,
+    "yearsatcompany": 2,
+    "yearsincurrentrole": 1,
+    "yearssincelastpromotion": 0,
+    "yearswithcurrmanager": 1
+  }'
+```
+
+Sample response:
+
+```json
+{
+  "prediction": {
+    "predicted_label": 1,
+    "churn_probability": 0.776,
+    "probability_vector": [0.224, 0.776]
+  }
+}
+```

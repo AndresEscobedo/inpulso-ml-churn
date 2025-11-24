@@ -15,9 +15,11 @@ spec:
       labels:
         app: elector
     spec:
+      imagePullSecrets:
+        - name: gcp-artifact-registry
       containers:
         - name: elector
-          image: us-central1-docker.pkg.dev/PROJECT_ID/ml-models/elector:latest
+          image: us-central1-docker.pkg.dev/inbest-transformation/inpulso-ds/elector:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5002
