@@ -122,9 +122,9 @@ Key request fields include: `age`, `businesstravel`, `dailyrate`, `department`, 
 ### Setting Up GCP VM (optional but recommended)
 
 ```bash
-export PROJECT_ID=inbest-transformation
-export LOCATION=us-central1
-export REPOSITORY=iNPulso-ds
+export PROJECT_ID=<YOUR_GCP_PROJECT_ID>
+export LOCATION=<YOUR_GCP_REGION>               # e.g., us-central1
+export REPOSITORY=<YOUR_ARTIFACT_REGISTRY_REPO>
 
 gcloud compute instances create ml-deployment-vm \
   --project=$PROJECT_ID \
@@ -139,7 +139,7 @@ gcloud compute instances create ml-deployment-vm \
 gcloud compute instances add-labels ml-deployment-vm \
   --project=$PROJECT_ID \
   --zone=$LOCATION-a \
-  --labels=environment=development,project=inpulso-ds-churn
+  --labels=environment=development,project=churn-demo
 
 gcloud compute firewall-rules create allow-minikube-dashboard \
   --project=$PROJECT_ID \
@@ -297,11 +297,16 @@ curl http://$ELECTOR_IP:$NODE_PORT/health  # confirms active weight
 ### 1. Environment variables
 
 ```bash
-export PROJECT_ID=inbest-transformation
-export LOCATION=us-central1
-export REPOSITORY=inpulso-ds
-export CLUSTER_NAME=inpulso-ds
+export PROJECT_ID=<YOUR_GCP_PROJECT_ID>
+export LOCATION=<YOUR_GCP_REGION>
+export REPOSITORY=<YOUR_ARTIFACT_REGISTRY_REPO>
+export CLUSTER_NAME=<YOUR_GKE_CLUSTER_NAME>
 ```
+
+> **Placeholder guide:**
+> - `PROJECT_ID`, `LOCATION`, `REPOSITORY`, and `CLUSTER_NAME` must match the resources in your GCP project.
+> - The Kubernetes manifests reference images as `REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/<service>:IMAGE_TAG`. Replace those strings (or use the provided `sed` commands) before applying the manifests.
+> - `YOUR_ALLOWED_CIDR` inside `k8s/elector-svc.yaml` controls who can reach the public LoadBalancer; set it to `0.0.0.0/0` for open access or your IP/32 for restricted access.
 
 ### 2. Create the GKE cluster
 
@@ -389,9 +394,9 @@ imagePullSecrets:
 ### 6. Update Kubernetes manifests
 
 ```bash
-sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/ml-models/main-model:latest|$MAIN_IMAGE|g" k8s/model-deployment.yaml
-sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/ml-models/canary-model:latest|$CANARY_IMAGE|g" k8s/canary-deployment.yaml
-sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/ml-models/elector:latest|$ELECTOR_IMAGE|g" k8s/elector-deployment.yaml
+sed -i "s|REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/main-model:IMAGE_TAG|$MAIN_IMAGE|g" k8s/model-deployment.yaml
+sed -i "s|REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/canary-model:IMAGE_TAG|$CANARY_IMAGE|g" k8s/canary-deployment.yaml
+sed -i "s|REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/elector:IMAGE_TAG|$ELECTOR_IMAGE|g" k8s/elector-deployment.yaml
 ```
 
 ### 7. Deploy to GKE
@@ -412,7 +417,7 @@ kubectl get pods -n churn
 ```bash
 kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl get svc elector -n churn
-curl -X POST "http://EXTERNAL_IP:8000/predict" \
+curl -X POST "http://EXTERNAL_IP/predict" \
   -H "Content-Type: application/json" \
   -d '{"age": 29, "monthlyincome": 3800, "overtime": "Yes"}'
 ```

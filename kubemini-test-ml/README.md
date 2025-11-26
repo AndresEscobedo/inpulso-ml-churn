@@ -122,9 +122,9 @@ Key request fields include: `age`, `businesstravel`, `dailyrate`, `department`, 
 ### Setting Up GCP VM (optional but recommended)
 
 ```bash
-export PROJECT_ID=inbest-transformation
-export LOCATION=us-central1
-export REPOSITORY=iNPulso-ds
+export PROJECT_ID=<YOUR_GCP_PROJECT_ID>
+export LOCATION=<YOUR_GCP_REGION>               # e.g., us-central1
+export REPOSITORY=<YOUR_ARTIFACT_REGISTRY_REPO>
 
 gcloud compute instances create ml-deployment-vm \
   --project=$PROJECT_ID \
@@ -139,7 +139,7 @@ gcloud compute instances create ml-deployment-vm \
 gcloud compute instances add-labels ml-deployment-vm \
   --project=$PROJECT_ID \
   --zone=$LOCATION-a \
-  --labels=environment=development,project=inpulso-ds-churn
+  --labels=environment=development,project=churn-demo
 
 gcloud compute firewall-rules create allow-minikube-dashboard \
   --project=$PROJECT_ID \
@@ -305,11 +305,16 @@ curl http://$ELECTOR_IP:$NODE_PORT/health  # confirms active weight
 ### 1. Environment variables
 
 ```bash
-export PROJECT_ID=kubernetes-cc-2025-478900
-export LOCATION=us-central1
-export REPOSITORY=ml-models
-export CLUSTER_NAME=ml-churn-cluster
+export PROJECT_ID=<YOUR_GCP_PROJECT_ID>
+export LOCATION=<YOUR_GCP_REGION>
+export REPOSITORY=<YOUR_ARTIFACT_REGISTRY_REPO>
+export CLUSTER_NAME=<YOUR_GKE_CLUSTER_NAME>
 ```
+
+> **Placeholder guide:**
+> - Ensure the values you choose for `PROJECT_ID`, `LOCATION`, `REPOSITORY`, and `CLUSTER_NAME` exist in your GCP account.
+> - Update the Kubernetes manifests so the placeholder image strings (`REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/<service>:IMAGE_TAG`) match the Artifact Registry images you build.
+> - Replace `YOUR_ALLOWED_CIDR` inside `k8s/elector-svc.yaml` with the CIDR blocks that should reach the LoadBalancer (or remove the section to allow all traffic).
 
 ### 2. Create the GKE cluster
 
@@ -338,22 +343,33 @@ gcloud artifacts repositories create $REPOSITORY \
 gcloud auth configure-docker $LOCATION-docker.pkg.dev
 ```
 
-### 4. Build and push container images
+### 4. Build and push container images (Cloud Build)
 
 ```bash
-MAIN_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/main-model:latest
-CANARY_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/canary-model:latest
-ELECTOR_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/elector:latest
+IMAGE_TAG=latest
+MAIN_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/main-model:$IMAGE_TAG
+CANARY_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/canary-model:$IMAGE_TAG
+ELECTOR_IMAGE=$LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/elector:$IMAGE_TAG
 
-docker build --platform linux/amd64 -t $MAIN_IMAGE -f main_model/Dockerfile .
-docker push $MAIN_IMAGE
+gcloud services enable cloudbuild.googleapis.com
 
-docker build --platform linux/amd64 -t $CANARY_IMAGE -f canary_model/Dockerfile .
-docker push $CANARY_IMAGE
+gcloud builds submit \
+  --config main_model/cloudbuild.yaml \
+  --substitutions=_REGION=$LOCATION,_REPOSITORY=$REPOSITORY,_IMAGE_TAG=$IMAGE_TAG \
+  .
 
-docker build --platform linux/amd64 -t $ELECTOR_IMAGE -f elector/Dockerfile .
-docker push $ELECTOR_IMAGE
+gcloud builds submit \
+  --config canary_model/cloudbuild.yaml \
+  --substitutions=_REGION=$LOCATION,_REPOSITORY=$REPOSITORY,_IMAGE_TAG=$IMAGE_TAG \
+  .
+
+gcloud builds submit \
+  --config elector/cloudbuild.yaml \
+  --substitutions=_REGION=$LOCATION,_REPOSITORY=$REPOSITORY,_IMAGE_TAG=$IMAGE_TAG \
+  .
 ```
+
+Each submission builds the Docker image inside Cloud Build and pushes it automatically to Artifact Registry using the substituted tag.
 
 ### 5. (Optional) Create pull secrets
 
@@ -386,9 +402,9 @@ imagePullSecrets:
 ### 6. Update Kubernetes manifests
 
 ```bash
-sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/ml-models/main-model:latest|$MAIN_IMAGE|g" k8s/model-deployment.yaml
-sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/ml-models/canary-model:latest|$CANARY_IMAGE|g" k8s/canary-deployment.yaml
-sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/ml-models/elector:latest|$ELECTOR_IMAGE|g" k8s/elector-deployment.yaml
+sed -i "s|REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/main-model:IMAGE_TAG|$MAIN_IMAGE|g" k8s/model-deployment.yaml
+sed -i "s|REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/canary-model:IMAGE_TAG|$CANARY_IMAGE|g" k8s/canary-deployment.yaml
+sed -i "s|REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/elector:IMAGE_TAG|$ELECTOR_IMAGE|g" k8s/elector-deployment.yaml
 ```
 
 ### 7. Deploy to GKE
@@ -409,7 +425,7 @@ kubectl get pods -n churn
 ```bash
 kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl get svc elector -n churn
-curl -X POST "http://EXTERNAL_IP:8000/predict" \
+curl -X POST "http://EXTERNAL_IP/predict" \
   -H "Content-Type: application/json" \
   -d '{"age": 29, "monthlyincome": 3800, "overtime": "Yes"}'
 ```

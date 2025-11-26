@@ -9,6 +9,6 @@ images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:${_IMAGE_TAG}'
 
 substitutions:
-  _REGION: 'us-central1'
-  _REPOSITORY: 'inpulso-ds'
+  _REGION: 'YOUR-REGION'
+  _REPOSITORY: 'YOUR-REPOSITORY'
   _IMAGE_TAG: 'latest'
