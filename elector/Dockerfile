@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY common ./common
 COPY elector ./elector
+COPY artifacts ./artifacts
 
 WORKDIR /app/elector
 

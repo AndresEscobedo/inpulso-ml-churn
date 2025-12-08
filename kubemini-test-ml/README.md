@@ -290,10 +290,10 @@ kubectl rollout status deployment/elector -n churn
 ### 1. Environment variables
 
 ```bash
-export PROJECT_ID=<YOUR_GCP_PROJECT_ID>
-export LOCATION=<YOUR_GCP_REGION>
-export REPOSITORY=<YOUR_ARTIFACT_REGISTRY_REPO>
-export CLUSTER_NAME=<YOUR_GKE_CLUSTER_NAME>
+export PROJECT_ID=inbest-transformation
+export LOCATION=us-central1
+export REPOSITORY=nadro-demo
+export CLUSTER_NAME=nadro-demo-ml
 ```
 
 > **Placeholder guide:**
@@ -310,7 +310,7 @@ gcloud container clusters create $CLUSTER_NAME \
   --zone=$LOCATION-a \
   --machine-type=e2-standard-2 \
   --num-nodes=3 \
-  --disk-size=80 \
+  --disk-size=40 \
   --disk-type=pd-standard \
   --release-channel=regular
 gcloud container clusters get-credentials $CLUSTER_NAME --zone=$LOCATION-a --project=$PROJECT_ID
@@ -408,7 +408,8 @@ kubectl get pods -n churn
 ### 8. Expose the Elector service
 
 ```bash
-kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
+export MY_IP=$(curl -s ifconfig.me)
+kubectl patch svc elector -n churn -p "{\"spec\": {\"type\": \"LoadBalancer\", \"loadBalancerSourceRanges\": [\"${MY_IP}/32\"]}}"
 kubectl get svc elector -n churn
 open http://EXTERNAL_IP
 ```

@@ -19,10 +19,17 @@ spec:
         - name: gcp-artifact-registry
       containers:
         - name: elector
-          image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/elector:IMAGE_TAG
+          image: us-central1-docker.pkg.dev/inbest-transformation/nadro-demo/elector:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8501
+          env:
+            - name: MAIN_MODEL_URL
+              value: "http://main-model:5000"
+            - name: CANARY_MODEL_URL
+              value: "http://canary-model:5001"
+            - name: CANARY_TRAFFIC_PERCENT
+              value: "20"
           readinessProbe:
             httpGet:
               path: /
