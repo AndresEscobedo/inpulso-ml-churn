@@ -49,6 +49,9 @@ def _load_dataset() -> pd.DataFrame:
     dict_disobedience = {"yes": 1, "no": 0}
     dict_attrition = {"yes": 1, "no": 0}
 
+    # Normalize target and binaries to lowercase before mapping
+    if TARGET_COLUMN in dataset.columns:
+        dataset[TARGET_COLUMN] = dataset[TARGET_COLUMN].astype(str).str.strip().str.lower()
     dataset["overtime"] = dataset["overtime"].map(dict_overtime)
     dataset["disobediencerules"] = dataset["disobediencerules"].map(dict_disobedience)
     dataset[TARGET_COLUMN] = dataset[TARGET_COLUMN].map(dict_attrition)

@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import random
 from typing import Dict, Any, Tuple
@@ -112,6 +113,16 @@ def predict_remote(payload: Dict[str, Any]) -> pd.DataFrame:
     """Route a single request: 80% main, 20% canary by default."""
     feature_frame = prepare_features(payload)
     normalized_payload = feature_frame.iloc[0].to_dict()
+    # Clean NaN/inf so JSON serialization succeeds
+    for key, value in list(normalized_payload.items()):
+        if value is None:
+            continue
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            normalized_payload[key] = None
+        elif pd.isna(value):
+            normalized_payload[key] = None
+        elif hasattr(value, "item"):
+            normalized_payload[key] = value.item()
 
     routed_to = "canary" if random.random() * 100 < CANARY_TRAFFIC_PERCENT else "main"
     target_url = CANARY_MODEL_URL if routed_to == "canary" else MAIN_MODEL_URL
