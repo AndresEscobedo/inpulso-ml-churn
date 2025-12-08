@@ -6,3 +6,5 @@ scikit-learn
 aiohttp
 httpx
 joblib
+streamlit
+plotly

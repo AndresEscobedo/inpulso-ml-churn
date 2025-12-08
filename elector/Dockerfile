@@ -3,7 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
 	PYTHONPATH=/app \
-	PORT=5002
+	PORT=8501
 
 WORKDIR /app
 
@@ -15,6 +15,6 @@ COPY elector ./elector
 
 WORKDIR /app/elector
 
-EXPOSE 5002
+EXPOSE 8501
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]

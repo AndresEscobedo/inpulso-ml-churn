@@ -12,6 +12,7 @@ TARGET_COLUMN = "attrition"
 RANDOM_STATE = 42
 
 CHURN_FEATURES: List[str] = [
+    # kept from the notebook selection after dropping EmployeeNumber, Over18, StandardHours
     "age",
     "businesstravel",
     "dailyrate",
@@ -45,17 +46,23 @@ CHURN_FEATURES: List[str] = [
     "yearswithcurrmanager",
 ]
 
-CATEGORICAL_FEATURES: List[str] = [
+# Notebook-driven one-hot list (drop_first=True in notebook via pd.get_dummies)
+CATEGORICAL_DUMMIES: List[str] = [
     "businesstravel",
     "department",
+    "education",
     "educationfield",
+    "environmentsatisfaction",
     "gender",
+    "jobinvolvement",
+    "joblevel",
     "jobrole",
-    "disobediencerules",
     "maritalstatus",
-    "overtime",
 ]
 
+# Binary mappings performed before the encoder
+BINARY_MAPPINGS: List[str] = ["overtime", "disobediencerules"]
+
 NUMERIC_FEATURES: List[str] = [
-    feature for feature in CHURN_FEATURES if feature not in CATEGORICAL_FEATURES
+    feature for feature in CHURN_FEATURES if feature not in CATEGORICAL_DUMMIES
 ]

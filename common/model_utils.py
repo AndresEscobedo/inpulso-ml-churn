@@ -8,7 +8,12 @@ from typing import Any, Dict
 import joblib
 import pandas as pd
 
-from common.churn_config import CHURN_FEATURES, MODEL_REGISTRY_PATH
+from common.churn_config import (
+    BINARY_MAPPINGS,
+    CATEGORICAL_DUMMIES,
+    CHURN_FEATURES,
+    MODEL_REGISTRY_PATH,
+)
 
 
 def _normalize_key(key: str) -> str:
@@ -34,6 +39,19 @@ def prepare_features(payload: Dict[str, Any]) -> pd.DataFrame:
     for column in CHURN_FEATURES:
         if column not in frame.columns:
             frame[column] = pd.NA
+    # Normalize categorical
+    for col in CATEGORICAL_DUMMIES:
+        if col in frame.columns:
+            frame[col] = frame[col].astype(str).str.strip().str.lower()
+    # Map binary fields
+    bin_map = {"yes": 1, "no": 0, True: 1, False: 0, 1: 1, 0: 0}
+    for col in BINARY_MAPPINGS:
+        if col in frame.columns:
+            frame[col] = frame[col].map(bin_map)
+    # Coerce numerics where possible
+    for col in frame.columns:
+        if col not in CATEGORICAL_DUMMIES:
+            frame[col] = pd.to_numeric(frame[col], errors="ignore")
     return frame[CHURN_FEATURES]
 
 

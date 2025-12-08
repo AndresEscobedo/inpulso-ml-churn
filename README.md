@@ -192,12 +192,12 @@ pip install -r requirements.txt
    python -m training.train_churn_models  # optional when artifacts already exist
    ```
 
-3. Start each FastAPI service (use separate terminals or a process manager):
-   ```bash
-   uvicorn main_model.app:app --host 0.0.0.0 --port 5000 --reload
-   uvicorn canary_model.app:app --host 0.0.0.0 --port 5001 --reload
-   CANARY_WEIGHT=35 uvicorn elector.app:app --host 0.0.0.0 --port 5002 --reload
-   ```
+3. Start each service (use separate terminals or a process manager):
+  ```bash
+  uvicorn main_model.app:app --host 0.0.0.0 --port 5000 --reload
+  uvicorn canary_model.app:app --host 0.0.0.0 --port 5001 --reload
+  streamlit run elector/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+  ```
 
 4. Test the routed endpoint:
    ```bash
@@ -227,7 +227,7 @@ pip install -r requirements.txt
    CANARY_WEIGHT=10 docker compose up elector
    ```
 
-4. Call `http://localhost:5002/predict` with the churn payload used earlier.
+4. Open the Streamlit UI at `http://localhost:8501` to compare models and send predictions.
 
 ## Kubernetes Deployment
 
@@ -417,9 +417,7 @@ kubectl get pods -n churn
 ```bash
 kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl get svc elector -n churn
-curl -X POST "http://EXTERNAL_IP/predict" \
-  -H "Content-Type: application/json" \
-  -d '{"age": 29, "monthlyincome": 3800, "overtime": "Yes"}'
+open http://EXTERNAL_IP
 ```
 
 ### 9. Monitor and audit

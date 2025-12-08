@@ -22,27 +22,19 @@ spec:
           image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/elector:IMAGE_TAG
           imagePullPolicy: Always
           ports:
-            - containerPort: 5002
-          env:
-            - name: CANARY_WEIGHT
-              value: "20"
-            - name: MAIN_MODEL_URL
-              value: http://main-model:5000
-            - name: CANARY_MODEL_URL
-              value: http://canary-model:5001
-            - name: REQUEST_TIMEOUT_SECONDS
-              value: "5"
+            - containerPort: 8501
           readinessProbe:
             httpGet:
-              path: /health
-              port: 5002
-            initialDelaySeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 5002
+              path: /
+              port: 8501
             initialDelaySeconds: 10
             periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8501
+            initialDelaySeconds: 20
+            periodSeconds: 30
           resources:
             requests:
               cpu: "100m"

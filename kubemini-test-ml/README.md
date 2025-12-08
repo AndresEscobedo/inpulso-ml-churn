@@ -1,6 +1,6 @@
 # ML Churn Deployment Project
 
-This repository packages everything needed to train, evaluate, and deploy churn (employee attrition) models with FastAPI, Docker, Docker Compose, Minikube, and Google Kubernetes Engine (GKE). Traffic is split between a main model and a canary model by a dedicated Elector service that honors configurable weights.
+This repository packages everything needed to train, evaluate, and deploy churn (employee attrition) models with FastAPI, Docker, Docker Compose, Minikube, and Google Kubernetes Engine (GKE). Traffic is split between a main model and a canary model using a Streamlit-based Elector UI that applies a configurable canary split.
 
 ## Architecture diagram
 
@@ -29,11 +29,11 @@ graph LR
         end
 
         subgraph Elector Service
-            F[FastAPI Elector]
-            G[Weighted Router]
-            F --> G
-            G -->|default 80%| A
-            G -->|default 20%| D
+          F[Streamlit Elector UI]
+          G[Client-side canary split]
+          F --> G
+          G -->|default 80%| A
+          G -->|default 20%| D
         end
     end
 
@@ -46,7 +46,7 @@ graph LR
 
 - **Main model** (`main_model/`): Random Forest churn pipeline exported as `artifacts/main_model.joblib`.
 - **Canary model** (`canary_model/`): Gradient Boosting challenger exported as `artifacts/canary_model.joblib`.
-- **Elector service** (`elector/`): FastAPI router that sends each request to either model based on `CANARY_WEIGHT` and retries on failure.
+- **Elector service** (`elector/`): Streamlit UI that sends each request to either model based on a canary split (`CANARY_TRAFFIC_PERCENT`).
 - **Shared utilities** (`common/`): Feature schema, preprocessing helpers, and centralized path definitions.
 - **Kubernetes manifests** (`k8s/`): Deployments, services, and namespace resources for Minikube or GKE.
 - **Artifacts & registry** (`artifacts/`): Persisted models plus `model_registry.json` with metrics to guide rollout decisions.
@@ -195,31 +195,19 @@ sudo apt-get install -y python3 python3-pip python3.10-venv
    python -m training.train_churn_models  # optional when artifacts already exist
    ```
 
-4. Start each FastAPI service (use separate terminals or a process manager):
-   ```bash
-   # Terminal 1: Main model
-   uvicorn main_model.app:app --host 0.0.0.0 --port 5000 --reload
+4. Start each service (use separate terminals or a process manager):
+  ```bash
+  # Terminal 1: Main model
+  uvicorn main_model.app:app --host 0.0.0.0 --port 5000 --reload
    
-   # Terminal 2: Canary model
-   uvicorn canary_model.app:app --host 0.0.0.0 --port 5001 --reload
+  # Terminal 2: Canary model
+  uvicorn canary_model.app:app --host 0.0.0.0 --port 5001 --reload
    
-   # Terminal 3: Elector (with localhost URLs for local development)
-   MAIN_MODEL_URL=http://localhost:5000 CANARY_MODEL_URL=http://localhost:5001 CANARY_WEIGHT=35 uvicorn elector.app:app --host 0.0.0.0 --port 5002 --reload
-   ```
+  # Terminal 3: Streamlit Elector (client-side 80/20 split)
+  CANARY_TRAFFIC_PERCENT=20 streamlit run elector/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+  ```
 
-5. Test the routed endpoint:
-   ```bash
-   curl -X POST "http://localhost:5002/predict" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "age": 34,
-       "monthlyincome": 4500,
-       "department": "Research & Development",
-       "jobrole": "Laboratory Technician",
-       "overtime": "No",
-       "businesstravel": "Travel_Rarely"
-     }'
-   ```
+5. Open the Streamlit UI at `http://localhost:8501` to compare models and send predictions (each request is routed to a single model according to the split).
 
 ### Running with Docker Compose
 
@@ -230,12 +218,12 @@ sudo apt-get install -y python3 python3-pip python3.10-venv
    docker compose up --build
    ```
 
-3. Override the routing weight when needed:
-   ```bash
-   CANARY_WEIGHT=10 docker compose up elector
-   ```
+3. Override the client-side routing weight when needed:
+  ```bash
+  CANARY_TRAFFIC_PERCENT=10 docker compose up elector
+  ```
 
-4. Call `http://localhost:5002/predict` with the churn payload used earlier.
+4. Open the Streamlit UI at `http://localhost:8501` to send predictions.
 
 ## Kubernetes Deployment
 
@@ -283,21 +271,18 @@ kubectl get svc -n churn
 ```bash
 NODE_PORT=$(kubectl get svc elector -n churn -o jsonpath='{.spec.ports[0].nodePort}')
 ELECTOR_IP=$(minikube ip)
-curl -X POST "http://$ELECTOR_IP:$NODE_PORT/predict" \
-  -H "Content-Type: application/json" \
-  -d '{"age": 40, "monthlyincome": 5200, "overtime": "Yes"}'
+echo "Open http://$ELECTOR_IP:$NODE_PORT to use the Streamlit Elector UI (default split 80/20)."
 ```
 
-Use `kubectl logs deployment/elector -n churn` if routing or retries misbehave, and `minikube service elector -n churn --url` to obtain a tunnelled URL when NodePort access is blocked.
+Use `kubectl logs deployment/elector -n churn` if UI calls fail, and `minikube service elector -n churn --url` to obtain a tunnelled URL when NodePort access is blocked.
 
 ### Adjusting routing weights in-cluster
 
-Edit `k8s/elector-deployment.yaml` and change the `CANARY_WEIGHT` environment variable. Re-apply and wait for the rollout:
+Edit `k8s/elector-deployment.yaml` and change the `CANARY_TRAFFIC_PERCENT` environment variable. Re-apply and wait for the rollout:
 
 ```bash
 kubectl apply -f k8s/elector-deployment.yaml -n churn
 kubectl rollout status deployment/elector -n churn
-curl http://$ELECTOR_IP:$NODE_PORT/health  # confirms active weight
 ```
 
 ## Deploying to Google Cloud Platform (GCP)
@@ -425,9 +410,7 @@ kubectl get pods -n churn
 ```bash
 kubectl patch svc elector -n churn -p '{"spec": {"type": "LoadBalancer"}}'
 kubectl get svc elector -n churn
-curl -X POST "http://EXTERNAL_IP/predict" \
-  -H "Content-Type: application/json" \
-  -d '{"age": 29, "monthlyincome": 3800, "overtime": "Yes"}'
+open http://EXTERNAL_IP
 ```
 
 ### 9. Monitor and audit
