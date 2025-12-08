@@ -152,9 +152,9 @@ def predict_remote(payload: Dict[str, Any]) -> pd.DataFrame:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Churn Elector", page_icon="🧭", layout="wide")
-    st.title("Churn Elector (Streamlit)")
-    st.caption("Compare main and canary models, inspect metrics, and score new predictions.")
+    st.set_page_config(page_title="Predicción de renuncia", page_icon="🧭", layout="wide")
+    st.title("Predicción de renuncia de empleados")
+    st.caption("Compara modelos main y canary, inspecciona métricas y realiza nuevas predicciones.")
 
     registry = load_registry()
     metrics_df = build_metrics_frame(registry)
@@ -165,8 +165,8 @@ def main() -> None:
         render_metrics(metrics_df)
 
     with col_form:
-        st.subheader("Predict")
-        st.write("Prefilled with the sample payload from the README. Adjust and submit.")
+        st.subheader("Predecir")
+        st.write("Detalles del empleado:")
         with st.form("predict_form"):
             inputs: Dict[str, Any] = {}
             for field in CHURN_FEATURES:
@@ -175,12 +175,12 @@ def main() -> None:
                     inputs[field] = st.number_input(field, value=float(default), step=1.0)
                 else:
                     inputs[field] = st.text_input(field, value=str(default or ""))
-            submitted = st.form_submit_button("Run prediction")
+            submitted = st.form_submit_button("Ejecutar predicción")
 
         if submitted:
             results_df = predict_remote(inputs)
             routed_model = results_df.iloc[0]["model"]
-            st.success(f"Prediction generated via {routed_model} (canary {CANARY_TRAFFIC_PERCENT:.0f}% split)")
+            st.success(f"Predicción generada vía {routed_model} (canary {CANARY_TRAFFIC_PERCENT:.0f}% split)")
             st.dataframe(results_df, use_container_width=True)
 
             if results_df["churn_probability"].notna().any():
@@ -195,12 +195,12 @@ def main() -> None:
                 )
                 st.plotly_chart(chart, use_container_width=True)
             if "error" in results_df.columns and results_df["error"].notna().any():
-                st.warning("One or more model calls failed; see the table for details.")
+                st.warning("Una o más llamadas al modelo fallaron; consulte la tabla para más detalles.")
 
     st.divider()
     st.markdown(
-        "Models are called via FastAPI endpoints (MAIN_MODEL_URL / CANARY_MODEL_URL). "
-        "Metrics are read from `artifacts/model_registry.json`."
+        "Los modelos se llaman a través de endpoints FastAPI (MAIN_MODEL_URL / CANARY_MODEL_URL). "
+        "Las métricas se leen desde `artifacts/model_registry.json`."
     )
 
 
