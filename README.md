@@ -1,6 +1,6 @@
 # ML Churn Deployment Project
 
-This repository packages everything needed to train, evaluate, and deploy churn (employee attrition) models with FastAPI, Docker, Docker Compose, Minikube, and Google Kubernetes Engine (GKE). Traffic is split between a main model and a canary model by a dedicated Elector service that honors configurable weights.
+This repository packages everything needed to train, evaluate, and deploy churn (employee attrition) models with FastAPI, Docker, Docker Compose, Minikube, and Google Kubernetes Engine (GKE). Traffic is split between a main model and a canary model by a Streamlit Elector UI that applies a configurable canary percentage per request.
 
 ## Architecture diagram
 
@@ -29,11 +29,11 @@ graph LR
         end
 
         subgraph Elector Service
-            F[FastAPI Elector]
-            G[Weighted Router]
-            F --> G
-            G -->|default 80%| A
-            G -->|default 20%| D
+          F[Streamlit Elector UI]
+          G[Client-side canary split]
+          F --> G
+          G -->|default 80%| A
+          G -->|default 20%| D
         end
     end
 
@@ -46,7 +46,7 @@ graph LR
 
 - **Main model** (`main_model/`): Random Forest churn pipeline exported as `artifacts/main_model.joblib`.
 - **Canary model** (`canary_model/`): Gradient Boosting challenger exported as `artifacts/canary_model.joblib`.
-- **Elector service** (`elector/`): FastAPI router that sends each request to either model based on `CANARY_WEIGHT` and retries on failure.
+- **Elector service** (`elector/`): Streamlit UI that routes each request to either model based on `CANARY_TRAFFIC_PERCENT` (default 20%).
 - **Shared utilities** (`common/`): Feature schema, preprocessing helpers, and centralized path definitions.
 - **Kubernetes manifests** (`k8s/`): Deployments, services, and namespace resources for Minikube or GKE.
 - **Artifacts & registry** (`artifacts/`): Persisted models plus `model_registry.json` with metrics to guide rollout decisions.
@@ -178,7 +178,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Running Locally (uvicorn processes)
+### Running Locally (uvicorn + Streamlit)
 
 1. Clone the repo and enter it:
    ```bash
@@ -196,22 +196,14 @@ pip install -r requirements.txt
   ```bash
   uvicorn main_model.app:app --host 0.0.0.0 --port 5000 --reload
   uvicorn canary_model.app:app --host 0.0.0.0 --port 5001 --reload
-  streamlit run elector/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+  # Streamlit Elector (client-side 80/20 split)
+  MAIN_MODEL_URL=http://localhost:5000 \
+  CANARY_MODEL_URL=http://localhost:5001 \
+  CANARY_TRAFFIC_PERCENT=20 \
+  PYTHONPATH=$(pwd) streamlit run elector/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
   ```
 
-4. Test the routed endpoint:
-   ```bash
-   curl -X POST "http://localhost:5002/predict" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "age": 34,
-       "monthlyincome": 4500,
-       "department": "Research & Development",
-       "jobrole": "Laboratory Technician",
-       "overtime": "No",
-       "businesstravel": "Travel_Rarely"
-     }'
-   ```
+4. Open the Streamlit UI at `http://localhost:8501` and run a prediction (each request goes to one model according to the split).
 
 ### Running with Docker Compose
 
@@ -222,12 +214,32 @@ pip install -r requirements.txt
    docker compose up --build
    ```
 
-3. Override the routing weight when needed:
-   ```bash
-   CANARY_WEIGHT=10 docker compose up elector
-   ```
+3. Override the client-side routing weight when needed:
+  ```bash
+  CANARY_TRAFFIC_PERCENT=10 docker compose up elector
+  ```
 
 4. Open the Streamlit UI at `http://localhost:8501` to compare models and send predictions.
+
+### Viewing Streamlit on a GCP VM (SSH tunnel)
+
+If the services run on a VM and you want to access the UI from your laptop without opening firewall ports:
+
+```bash
+# From your laptop (opens an SSH tunnel)
+gcloud compute ssh ml-deployment-vm --zone=$LOCATION-a --project=$PROJECT_ID -- -L 8501:localhost:8501
+
+# On the VM (in another shell or after SSH):
+cd ~/inpulso-ml-churn
+source .venv/bin/activate
+MAIN_MODEL_URL=http://localhost:5000 \
+CANARY_MODEL_URL=http://localhost:5001 \
+CANARY_TRAFFIC_PERCENT=20 \
+PYTHONPATH=$(pwd) streamlit run elector/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+
+# Back on your laptop, open:
+http://localhost:8501
+```
 
 ## Kubernetes Deployment
 
