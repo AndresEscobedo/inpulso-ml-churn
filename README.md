@@ -182,7 +182,7 @@ pip install -r requirements.txt
 
 1. Clone the repo and enter it:
    ```bash
-   git clone https://github.com/AndresEscobedo/kubemini-test-ml.git
+   git clone https://github.com/AndresEscobedo/inpulso-ml-churn.git
    cd kubemini-test-ml
    ```
 
