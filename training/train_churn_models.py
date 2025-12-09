@@ -66,7 +66,7 @@ def _load_dataset() -> pd.DataFrame:
     return dataset
 
 
-def _build_preprocessor(dummy_columns: List[str]) -> ColumnTransformer:
+def _build_preprocessor(dummy_columns: List[str], numeric_columns: List[str]) -> ColumnTransformer:
     categorical_pipeline = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="most_frequent")),
@@ -77,19 +77,26 @@ def _build_preprocessor(dummy_columns: List[str]) -> ColumnTransformer:
         ]
     )
 
+    numeric_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+        ]
+    )
+
     return ColumnTransformer(
         transformers=[
             ("cat", categorical_pipeline, dummy_columns),
+            ("num", numeric_pipeline, numeric_columns),
         ],
-        remainder="passthrough",
+        remainder="drop",
         sparse_threshold=0.0,
     )
 
 
-def _train_pipeline(classifier, dummy_columns: List[str]) -> Pipeline:
+def _train_pipeline(classifier, dummy_columns: List[str], numeric_columns: List[str]) -> Pipeline:
     return Pipeline(
         steps=[
-            ("preprocess", _build_preprocessor(dummy_columns)),
+            ("preprocess", _build_preprocessor(dummy_columns, numeric_columns)),
             ("scaler", StandardScaler(with_mean=False)),
             ("classifier", classifier),
         ]
@@ -112,7 +119,7 @@ def train() -> Tuple[Dict[str, float], Dict[str, float]]:
     feature_frame = data.drop(columns=[TARGET_COLUMN])
 
     dummy_columns = [col for col in CATEGORICAL_DUMMIES if col in feature_frame.columns]
-    passthrough_columns = [col for col in feature_frame.columns if col not in dummy_columns]
+    numeric_columns = [col for col in feature_frame.columns if col not in dummy_columns]
 
     x_train, x_test, y_train, y_test = train_test_split(
         feature_frame,
@@ -132,6 +139,7 @@ def train() -> Tuple[Dict[str, float], Dict[str, float]]:
             n_jobs=-1,
         ),
         dummy_columns,
+        numeric_columns,
     )
 
     canary_pipeline = _train_pipeline(
@@ -142,6 +150,7 @@ def train() -> Tuple[Dict[str, float], Dict[str, float]]:
             max_depth=3,
         ),
         dummy_columns,
+        numeric_columns,
     )
 
     main_pipeline.fit(x_train, y_train)
@@ -169,7 +178,7 @@ def train() -> Tuple[Dict[str, float], Dict[str, float]]:
                 },
                 "meta": {
                     "dummy_columns": dummy_columns,
-                    "passthrough_columns": passthrough_columns,
+                    "numeric_columns": numeric_columns,
                 },
             },
             registry_file,

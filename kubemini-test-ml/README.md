@@ -409,7 +409,7 @@ kubectl get pods -n churn
 
 ```bash
 export MY_IP=$(curl -s ifconfig.me)
-kubectl patch svc elector -n churn -p "{\"spec\": {\"type\": \"LoadBalancer\", \"loadBalancerSourceRanges\": [\"${MY_IP}/32\"]}}"
+kubectl patch svc elector -n churn --type=merge -p "{\"spec\": {\"type\": \"LoadBalancer\", \"loadBalancerSourceRanges\": [\"${MY_IP}/32\"]}}"
 kubectl get svc elector -n churn
 open http://EXTERNAL_IP
 ```
