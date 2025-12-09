@@ -19,7 +19,7 @@ spec:
         - name: gcp-artifact-registry
       containers:
         - name: main-model
-          image: us-central1-docker.pkg.dev/inbest-transformation/nadro-demo/main-model:latest
+          image: us-central1-docker.pkg.dev/inbest-transformation/nadro-demo/main-model:shap-v2
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

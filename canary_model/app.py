@@ -6,6 +6,10 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
+import numpy as np
+import pandas as pd
+import shap
+
 from fastapi import FastAPI, HTTPException
 
 from common.churn_config import CHURN_FEATURES, CANARY_MODEL_ARTIFACT
@@ -28,6 +32,19 @@ except FileNotFoundError as exc:
 app = FastAPI(title="Canary Churn Model API")
 
 
+def _get_explainer():
+    background = pd.DataFrame([np.zeros(len(CHURN_FEATURES))], columns=CHURN_FEATURES)
+    return shap.Explainer(
+        lambda data: loaded_model.predict_proba(pd.DataFrame(data, columns=CHURN_FEATURES))[:, 1],
+        masker=background,
+        feature_names=CHURN_FEATURES,
+        algorithm="permutation",
+    )
+
+
+_explainer = _get_explainer()
+
+
 def _predict(payload: Dict[str, Any]) -> Dict[str, Any]:
     feature_frame = prepare_features(payload)
     probabilities = loaded_model.predict_proba(feature_frame)[0]
@@ -42,6 +59,19 @@ def _predict(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _explain(payload: Dict[str, Any]) -> Dict[str, Any]:
+    feature_frame = prepare_features(payload)
+    shap_values = _explainer(feature_frame)
+    contrib = shap_values.values[0].tolist()
+    base_value = float(shap_values.base_values[0])
+    return {
+        "model_key": MODEL_KEY,
+        "features": CHURN_FEATURES,
+        "base_value": base_value,
+        "contributions": contrib,
+    }
+
+
 @app.post("/predict")
 async def predict(request: ChurnRequest):
     try:
@@ -49,6 +79,16 @@ async def predict(request: ChurnRequest):
         return {"input": request.model_dump(), "prediction": result}
     except Exception as exc:
         logger.exception("Prediction failed")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/explain")
+async def explain(request: ChurnRequest):
+    try:
+        result = _explain(request.model_dump())
+        return {"input": request.model_dump(), "explanation": result}
+    except Exception as exc:
+        logger.exception("Explain failed")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

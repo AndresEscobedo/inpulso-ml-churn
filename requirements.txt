@@ -1,6 +1,6 @@
 fastapi[standard]
 uvicorn
-numpy
+numpy==1.26.4
 pandas
 scikit-learn
 aiohttp
@@ -8,3 +8,4 @@ httpx
 joblib
 streamlit
 plotly
+shap==0.43.0

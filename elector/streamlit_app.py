@@ -109,6 +109,23 @@ def _call_model(url: str, payload: Dict[str, Any]) -> Tuple[float, int]:
         return proba, label
 
 
+def _call_explain(url: str, payload: Dict[str, Any]) -> pd.DataFrame:
+    with httpx.Client(timeout=15) as client:
+        response = client.post(f"{url}/explain", json=payload)
+        response.raise_for_status()
+        explanation = response.json().get("explanation", {})
+        features = explanation.get("features", [])
+        contributions = explanation.get("contributions", [])
+        base_value = explanation.get("base_value")
+        data = {
+            "feature": features,
+            "contribution": contributions,
+        }
+        df = pd.DataFrame(data)
+        df["base_value"] = base_value
+        return df
+
+
 def predict_remote(payload: Dict[str, Any]) -> pd.DataFrame:
     """Route a single request: 80% main, 20% canary by default."""
     feature_frame = prepare_features(payload)
@@ -151,6 +168,29 @@ def predict_remote(payload: Dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def explain_remote(payload: Dict[str, Any], model: str) -> pd.DataFrame:
+    feature_frame = prepare_features(payload)
+    normalized_payload = feature_frame.iloc[0].to_dict()
+    for key, value in list(normalized_payload.items()):
+        if value is None:
+            continue
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            normalized_payload[key] = None
+        elif pd.isna(value):
+            normalized_payload[key] = None
+        elif hasattr(value, "item"):
+            normalized_payload[key] = value.item()
+
+    target_url = CANARY_MODEL_URL if model == "canary" else MAIN_MODEL_URL
+    try:
+        df = _call_explain(target_url, normalized_payload)
+        df["model"] = model
+        df = df.sort_values("contribution", key=lambda s: s.abs(), ascending=False)
+        return df
+    except Exception as exc:  # pragma: no cover - UI feedback only
+        return pd.DataFrame({"model": [model], "error": [str(exc)]})
+
+
 def main() -> None:
     st.set_page_config(page_title="Predicción de renuncia", page_icon="🧭", layout="wide")
     st.title("Predicción de renuncia de empleados")
@@ -182,6 +222,21 @@ def main() -> None:
             routed_model = results_df.iloc[0]["model"]
             st.success(f"Predicción generada vía {routed_model} (canary {CANARY_TRAFFIC_PERCENT:.0f}% split)")
             st.dataframe(results_df, use_container_width=True)
+
+            expl_df = explain_remote(inputs, routed_model)
+            if "error" in expl_df.columns:
+                st.warning(f"No se pudo generar la explicación: {expl_df.iloc[0]['error']}")
+            else:
+                st.subheader("Explicabilidad (SHAP aprox)")
+                expl_chart = px.bar(
+                    expl_df,
+                    x="feature",
+                    y="contribution",
+                    color="contribution",
+                    color_continuous_scale="RdBu",
+                    title=f"Contribuciones del modelo {routed_model}",
+                )
+                st.plotly_chart(expl_chart, use_container_width=True)
 
             if results_df["churn_probability"].notna().any():
                 chart = px.bar(
