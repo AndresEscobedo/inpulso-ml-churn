@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -108,6 +108,8 @@ def _evaluate(model: Pipeline, x: pd.DataFrame, y: pd.Series) -> Dict[str, float
     probabilities = model.predict_proba(x)[:, 1]
     return {
         "accuracy": float(accuracy_score(y, predictions)),
+        "precision": float(precision_score(y, predictions)),
+        "recall": float(recall_score(y, predictions)),
         "f1": float(f1_score(y, predictions)),
         "roc_auc": float(roc_auc_score(y, probabilities)),
     }
