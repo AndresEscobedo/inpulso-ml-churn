@@ -19,7 +19,7 @@ spec:
         - name: gcp-artifact-registry
       containers:
         - name: elector
-          image: us-central1-docker.pkg.dev/inbest-transformation/nadro-demo/elector:shap-v2
+          image: us-central1-docker.pkg.dev/inbest-transformation/nadro-demo/elector:v8-shap
           imagePullPolicy: Always
           ports:
             - containerPort: 8501

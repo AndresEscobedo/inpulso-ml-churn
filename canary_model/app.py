@@ -12,7 +12,7 @@ import shap
 
 from fastapi import FastAPI, HTTPException
 
-from common.churn_config import CHURN_FEATURES, CANARY_MODEL_ARTIFACT
+from common.churn_config import CHURN_FEATURES, CANARY_MODEL_ARTIFACT, ARTIFACT_DIR
 from common.model_utils import load_artifact, prepare_features, registry_entry
 from common.schemas import ChurnRequest
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_PATH = Path(os.getenv("MODEL_ARTIFACT_PATH", str(CANARY_MODEL_ARTIFACT)))
 MODEL_KEY = os.getenv("MODEL_KEY", "canary")
+BACKGROUND_DATA_PATH = ARTIFACT_DIR / "background_data.joblib"
 
 try:
     loaded_model = load_artifact(MODEL_PATH)
@@ -33,12 +34,16 @@ app = FastAPI(title="Canary Churn Model API")
 
 
 def _get_explainer():
-    background = pd.DataFrame([np.zeros(len(CHURN_FEATURES))], columns=CHURN_FEATURES)
-    return shap.Explainer(
+    try:
+        background = load_artifact(BACKGROUND_DATA_PATH)
+        logger.info("Loaded background data for SHAP from %s", BACKGROUND_DATA_PATH)
+    except Exception:
+        logger.warning("Background data not found, falling back to zeros (may cause issues with categoricals)")
+        background = pd.DataFrame([np.zeros(len(CHURN_FEATURES))], columns=CHURN_FEATURES)
+
+    return shap.KernelExplainer(
         lambda data: loaded_model.predict_proba(pd.DataFrame(data, columns=CHURN_FEATURES))[:, 1],
-        masker=background,
-        feature_names=CHURN_FEATURES,
-        algorithm="permutation",
+        background,
     )
 
 
@@ -61,9 +66,9 @@ def _predict(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def _explain(payload: Dict[str, Any]) -> Dict[str, Any]:
     feature_frame = prepare_features(payload)
-    shap_values = _explainer(feature_frame)
-    contrib = shap_values.values[0].tolist()
-    base_value = float(shap_values.base_values[0])
+    shap_values = _explainer.shap_values(feature_frame)
+    contrib = shap_values[0].tolist()
+    base_value = float(_explainer.expected_value)
     return {
         "model_key": MODEL_KEY,
         "features": CHURN_FEATURES,

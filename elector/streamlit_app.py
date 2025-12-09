@@ -13,7 +13,7 @@ from common.churn_config import MODEL_REGISTRY_PATH, CHURN_FEATURES
 from common.model_utils import prepare_features
 
 # Prefill sample (class 0-ish) from README
-DEFAULT_SAMPLE = {
+SAMPLE_RETENTION = {
     "age": 37,
     "businesstravel": "Travel_Rarely",
     "dailyrate": 1020,
@@ -45,6 +45,41 @@ DEFAULT_SAMPLE = {
     "yearsincurrentrole": 5,
     "yearssincelastpromotion": 1,
     "yearswithcurrmanager": 4,
+}
+
+# High risk sample (class 1-ish)
+SAMPLE_CHURN = {
+    "age": 28,
+    "businesstravel": "Travel_Frequently",
+    "dailyrate": 500,
+    "department": "Sales",
+    "distancefromhome": 25,
+    "education": 2,
+    "educationfield": "Marketing",
+    "environmentsatisfaction": 1,
+    "gender": "Female",
+    "hourlyrate": 40,
+    "jobinvolvement": 1,
+    "joblevel": 1,
+    "jobrole": "Sales Representative",
+    "disobediencerules": "Yes",
+    "jobsatisfaction": 1,
+    "maritalstatus": "Single",
+    "monthlyincome": 2500,
+    "monthlyrate": 8000,
+    "numcompaniesworked": 7,
+    "overtime": "Yes",
+    "percentsalaryhike": 11,
+    "performancerating": 3,
+    "relationshipsatisfaction": 1,
+    "stockoptionlevel": 0,
+    "totalworkingyears": 3,
+    "trainingtimeslastyear": 1,
+    "worklifebalance": 1,
+    "yearsatcompany": 1,
+    "yearsincurrentrole": 0,
+    "yearssincelastpromotion": 0,
+    "yearswithcurrmanager": 0,
 }
 
 
@@ -110,7 +145,7 @@ def _call_model(url: str, payload: Dict[str, Any]) -> Tuple[float, int]:
 
 
 def _call_explain(url: str, payload: Dict[str, Any]) -> pd.DataFrame:
-    with httpx.Client(timeout=15) as client:
+    with httpx.Client(timeout=45) as client:
         response = client.post(f"{url}/explain", json=payload)
         response.raise_for_status()
         explanation = response.json().get("explanation", {})
@@ -206,15 +241,27 @@ def main() -> None:
 
     with col_form:
         st.subheader("Predecir")
+        
+        # Selector de perfil
+        profile = st.radio(
+            "Perfil de ejemplo:",
+            ["Retención (Bajo Riesgo)", "Renuncia (Alto Riesgo)"],
+            horizontal=True
+        )
+        current_sample = SAMPLE_RETENTION if profile == "Retención (Bajo Riesgo)" else SAMPLE_CHURN
+
         st.write("Detalles del empleado:")
         with st.form("predict_form"):
             inputs: Dict[str, Any] = {}
             for field in CHURN_FEATURES:
-                default = DEFAULT_SAMPLE.get(field)
+                default = current_sample.get(field)
+                # Use key to force refresh when profile changes
+                widget_key = f"{field}_{profile}"
+                
                 if isinstance(default, (int, float)):
-                    inputs[field] = st.number_input(field, value=float(default), step=1.0)
+                    inputs[field] = st.number_input(field, value=float(default), step=1.0, key=widget_key)
                 else:
-                    inputs[field] = st.text_input(field, value=str(default or ""))
+                    inputs[field] = st.text_input(field, value=str(default or ""), key=widget_key)
             submitted = st.form_submit_button("Ejecutar predicción")
 
         if submitted:

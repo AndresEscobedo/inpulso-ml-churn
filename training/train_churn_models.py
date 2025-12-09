@@ -167,6 +167,11 @@ def train() -> Tuple[Dict[str, float], Dict[str, float]]:
     joblib.dump(main_pipeline, MAIN_MODEL_ARTIFACT)
     joblib.dump(canary_pipeline, CANARY_MODEL_ARTIFACT)
 
+    # Save background data for SHAP (take 50 random rows from train set)
+    # This ensures we have valid data types (strings for cats) for the masker
+    background_data = x_train.sample(50, random_state=RANDOM_STATE)
+    joblib.dump(background_data, ARTIFACT_DIR / "background_data.joblib")
+
     with MODEL_REGISTRY_PATH.open("w", encoding="utf-8") as registry_file:
         json.dump(
             {

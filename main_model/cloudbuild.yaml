@@ -1,14 +1,32 @@
 steps:
+# 1. Pull the latest image to use as cache
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:${_IMAGE_TAG}', '-f', 'main_model/Dockerfile', '.']
+  entrypoint: 'bash'
+  args: ['-c', 'docker pull ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:latest || exit 0']
 
+# 2. Build the image using cache
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:${_IMAGE_TAG}',
+    '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:latest',
+    '--cache-from', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:latest',
+    '-f', 'main_model/Dockerfile',
+    '.'
+  ]
+
+# 3. Push both tags
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:${_IMAGE_TAG}']
 
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:latest']
+
 images: 
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/main-model:latest'
 
 substitutions:
-  _REGION: 'YOUR-REGION'
-  _REPOSITORY: 'YOUR-REPOSITORY'
+  _REGION: 'us-central1'
+  _REPOSITORY: 'nadro-demo'
   _IMAGE_TAG: 'latest'

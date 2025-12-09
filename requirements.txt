@@ -2,7 +2,7 @@ fastapi[standard]
 uvicorn
 numpy==1.26.4
 pandas
-scikit-learn
+scikit-learn==1.7.2
 aiohttp
 httpx
 joblib
